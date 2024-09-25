@@ -4,23 +4,18 @@ import (
 	"errors"
 	"io"
 	"net/http"
-
-	"github.com/quic-go/quic-go"
 )
 
-func sendRequestBody(str quic.Stream, body io.ReadCloser) error {
+func sendRequestBody(str *stream, body io.ReadCloser) error {
 	defer body.Close()
-	_, err := io.Copy(str, body)
+	buf := make([]byte, bodyCopyBufferSize)
+	_, err := io.CopyBuffer(str, body, buf)
 	return err
 }
 
-func (obj *client) sendRequest(req *http.Request, str quic.Stream) error {
+func (obj *Client) sendRequest(req *http.Request, str *stream) error {
 	defer str.Close()
-	var requestGzip bool
-	if !obj.opts.DisableCompression && req.Method != "HEAD" && req.Header.Get("Accept-Encoding") == "" && req.Header.Get("Range") == "" {
-		requestGzip = true
-	}
-	if err := obj.WriteRequestHeader(str, req, requestGzip); err != nil {
+	if err := obj.writeRequestHeader(str, req); err != nil {
 		return err
 	}
 	if req.Body != nil {
@@ -28,9 +23,10 @@ func (obj *client) sendRequest(req *http.Request, str quic.Stream) error {
 	}
 	return nil
 }
-func (obj *client) readResponse(req *http.Request, str quic.Stream) (*http.Response, error) {
+
+func (obj *Client) readResponse(req *http.Request, str *stream) (*http.Response, error) {
 	defer str.Close()
-	frame, err := parseNextFrame(str)
+	frame, err := str.parseNextFrame()
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +35,7 @@ func (obj *client) readResponse(req *http.Request, str quic.Stream) (*http.Respo
 		return nil, errors.New("not head Frames")
 	}
 	headerBlock := make([]byte, headFrame.Length)
-	if _, err := io.ReadFull(str, headerBlock); err != nil {
+	if _, err := io.ReadFull(str.str, headerBlock); err != nil {
 		return nil, err
 	}
 	hfs, err := obj.decoder.DecodeFull(headerBlock)
@@ -56,7 +52,8 @@ func (obj *client) readResponse(req *http.Request, str quic.Stream) (*http.Respo
 	res.Body = str
 	return res, nil
 }
-func (obj *client) doRequest(req *http.Request, str quic.Stream) (*http.Response, error) {
+
+func (obj *Client) doRequest(req *http.Request, str *stream) (*http.Response, error) {
 	err := obj.sendRequest(req, str)
 	if err != nil {
 		return nil, err

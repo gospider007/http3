@@ -25,8 +25,8 @@ func (f *dataFrame) Append(b []byte) []byte {
 	b = quicvarint.Append(b, 0x0)
 	return quicvarint.Append(b, f.Length)
 }
-func parseNextFrame(r io.Reader) (any, error) {
-	qr := quicvarint.NewReader(r)
+func (obj *stream) parseNextFrame() (any, error) {
+	qr := quicvarint.NewReader(obj.str)
 	for {
 		t, err := quicvarint.Read(qr)
 		if err != nil {
@@ -42,7 +42,7 @@ func parseNextFrame(r io.Reader) (any, error) {
 		case 0x1:
 			return &headersFrame{Length: l}, nil
 		case 0x4:
-			return parseSettingsFrame(r, l)
+			return obj.parseSettingsFrame(l)
 		case 0x3: // CANCEL_PUSH
 		case 0x5: // PUSH_PROMISE
 		case 0x7: // GOAWAY
@@ -62,12 +62,12 @@ type settingsFrame struct {
 
 const settingDatagram = 0x33
 
-func parseSettingsFrame(r io.Reader, l uint64) (*settingsFrame, error) {
+func (obj *stream) parseSettingsFrame(l uint64) (*settingsFrame, error) {
 	if l > 8*(1<<10) {
 		return nil, fmt.Errorf("unexpected size for SETTINGS frame: %d", l)
 	}
 	buf := make([]byte, l)
-	if _, err := io.ReadFull(r, buf); err != nil {
+	if _, err := io.ReadFull(obj.str, buf); err != nil {
 		if err == io.ErrUnexpectedEOF {
 			return nil, io.EOF
 		}

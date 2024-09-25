@@ -1,45 +1,37 @@
 package http3
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/gospider007/requests"
+	"github.com/gospider007/tools"
 	"github.com/quic-go/qpack"
-	"github.com/quic-go/quic-go"
 	"golang.org/x/net/http/httpguts"
 	"golang.org/x/net/http2/hpack"
 )
 
-func (obj *client) WriteRequestHeader(str quic.Stream, req *http.Request, gzip bool) error {
-	buf := &bytes.Buffer{}
-	if err := obj.writeHeaders(buf, req, gzip); err != nil {
-		return err
-	}
-	_, err := str.Write(buf.Bytes())
-	return err
+func (obj *Client) writeRequestHeader(str *stream, req *http.Request) error {
+	return obj.writeHeaders(str, req)
 }
 
-func (obj *client) writeHeaders(wr io.Writer, req *http.Request, gzip bool) error {
+func (obj *Client) writeHeaders(str *stream, req *http.Request) error {
 	defer obj.encoder.Close()
 	defer obj.headerBuf.Reset()
-	if err := obj.encodeHeaders(req, gzip, "", actualContentLength(req)); err != nil {
+	if err := obj.encodeHeaders(req, "", actualContentLength(req)); err != nil {
 		return err
 	}
 	b := make([]byte, 0, 128)
 	b = (&headersFrame{Length: uint64(obj.headerBuf.Len())}).Append(b)
-	if _, err := wr.Write(b); err != nil {
+	if _, err := str.str.Write(b); err != nil {
 		return err
 	}
-	_, err := wr.Write(obj.headerBuf.Bytes())
+	_, err := str.str.Write(obj.headerBuf.Bytes())
 	return err
 }
-func (obj *client) encodeHeaders(req *http.Request, addGzipHeader bool, trailers string, contentLength int64) error {
+func (obj *Client) encodeHeaders(req *http.Request, trailers string, contentLength int64) error {
 	host := req.Host
 	if host == "" {
 		host = req.URL.Host
@@ -113,11 +105,8 @@ func (obj *client) encodeHeaders(req *http.Request, addGzipHeader bool, trailers
 		if shouldSendReqContentLength(req.Method, contentLength) {
 			f("content-length", strconv.FormatInt(contentLength, 10))
 		}
-		if addGzipHeader {
-			f("accept-encoding", "gzip")
-		}
 		if !didUA {
-			f("user-agent", requests.UserAgent)
+			f("user-agent", tools.UserAgent)
 		}
 	}
 	// Do a first pass over the headers counting bytes to ensure
