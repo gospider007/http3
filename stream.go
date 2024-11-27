@@ -3,14 +3,12 @@ package http3
 import (
 	"errors"
 	"io"
-
-	"github.com/quic-go/quic-go"
 )
 
 const bodyCopyBufferSize int = 8 * 1024
 
 type stream struct {
-	str     quic.Stream
+	str     io.ReadWriteCloser
 	buf     []byte
 	readLen int
 }
