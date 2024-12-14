@@ -40,25 +40,28 @@ type Client struct {
 	headerBuf *bytes.Buffer
 }
 
-func (obj *Client) RoundTrip(req *http.Request) (*http.Response, error) {
+func (obj *Client) DoRequest(req *http.Request, orderHeaders []string) (*http.Response, error) {
 	str, err := obj.conn.OpenStreamSync(req.Context())
 	if err != nil {
 		return nil, err
 	}
 	return obj.doRequest(req, &stream{str: str})
 }
-func (obj *Client) Close(err string) error {
-	if err == "" {
-		err = "Client closed"
+func (obj *Client) CloseWithError(err error) error {
+	var errStr string
+	if err == nil {
+		errStr = "Client closed"
+	} else {
+		errStr = err.Error()
 	}
-	return obj.conn.CloseWithError(0, err)
+	return obj.conn.CloseWithError(0, errStr)
 }
 
 var NextProtoH3 = http3.NextProtoH3
 
-type RoundTripper interface {
-	Close(err string) error
-	RoundTrip(req *http.Request) (*http.Response, error)
+type Conn interface {
+	CloseWithError(err error) error
+	DoRequest(req *http.Request, orderHeaders []string) (*http.Response, error)
 }
 
 func Dial(ctx context.Context, addr string, tlsCfg *tls.Config, cfg *quic.Config) (quic.EarlyConnection, error) {
@@ -106,7 +109,7 @@ func (obj *guconn) CloseWithError(code uint64, reason string) error {
 	return obj.conn.CloseWithError(0, reason)
 }
 
-func NewClient(conn quic.EarlyConnection) RoundTripper {
+func NewClient(conn quic.EarlyConnection) Conn {
 	headerBuf := bytes.NewBuffer(nil)
 	return &Client{
 		conn:      &gconn{conn: conn},
@@ -115,7 +118,7 @@ func NewClient(conn quic.EarlyConnection) RoundTripper {
 		headerBuf: headerBuf,
 	}
 }
-func NewUClient(conn uquic.EarlyConnection) RoundTripper {
+func NewUClient(conn uquic.EarlyConnection) Conn {
 	headerBuf := bytes.NewBuffer(nil)
 	return &Client{
 		conn:      &guconn{conn: conn},

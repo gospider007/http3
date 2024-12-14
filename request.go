@@ -46,8 +46,6 @@ func (obj *Client) readResponse(req *http.Request, str *stream) (*http.Response,
 	if err != nil {
 		return nil, err
 	}
-	// connState := obj.conn.ConnectionState().TLS
-	// res.TLS = &connState
 	res.Request = req
 	res.Body = str
 	return res, nil
