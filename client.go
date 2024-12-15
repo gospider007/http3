@@ -34,6 +34,7 @@ type uconn interface {
 	OpenStreamSync(context.Context) (io.ReadWriteCloser, error)
 }
 type Client struct {
+	closeFunc func()
 	conn      uconn
 	decoder   udeocder
 	encoder   uencoder
@@ -53,6 +54,9 @@ func (obj *Client) CloseWithError(err error) error {
 		errStr = "Client closed"
 	} else {
 		errStr = err.Error()
+	}
+	if obj.closeFunc != nil {
+		obj.closeFunc()
 	}
 	return obj.conn.CloseWithError(0, errStr)
 }
@@ -109,18 +113,20 @@ func (obj *guconn) CloseWithError(code uint64, reason string) error {
 	return obj.conn.CloseWithError(0, reason)
 }
 
-func NewClient(conn quic.EarlyConnection) Conn {
+func NewClient(conn quic.EarlyConnection, closeFunc func()) Conn {
 	headerBuf := bytes.NewBuffer(nil)
 	return &Client{
+		closeFunc: closeFunc,
 		conn:      &gconn{conn: conn},
 		decoder:   qpack.NewDecoder(func(hf qpack.HeaderField) {}),
 		encoder:   qpack.NewEncoder(headerBuf),
 		headerBuf: headerBuf,
 	}
 }
-func NewUClient(conn uquic.EarlyConnection) Conn {
+func NewUClient(conn uquic.EarlyConnection, closeFunc func()) Conn {
 	headerBuf := bytes.NewBuffer(nil)
 	return &Client{
+		closeFunc: closeFunc,
 		conn:      &guconn{conn: conn},
 		decoder:   qpack.NewDecoder(func(hf qpack.HeaderField) {}),
 		encoder:   qpack.NewEncoder(headerBuf),
