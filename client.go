@@ -42,6 +42,8 @@ func (obj *Client) DoRequest(req *http.Request, orderHeaders []string) (*http.Re
 	if err != nil {
 		return nil, err
 	}
+	// resp, err := obj.doRequest(req, &stream{str: str})
+	// return resp, err
 	return obj.doRequest(req, &stream{str: str})
 }
 func (obj *Client) CloseWithError(err error) error {
