@@ -26,15 +26,14 @@ func (obj *Client) sendRequest(req *http.Request, str *stream) error {
 
 func (obj *Client) readResponse(req *http.Request, str *stream) (*http.Response, error) {
 	defer str.Close()
-	frame, err := str.parseNextFrame()
+	t, l, err := str.parseNextFrame()
 	if err != nil {
 		return nil, err
 	}
-	headFrame, ok := frame.(*headersFrame)
-	if !ok {
-		return nil, errors.New("not head Frames")
+	if t != frameTypeHeaders {
+		return nil, errors.New("not headers Frames")
 	}
-	headerBlock := make([]byte, headFrame.Length)
+	headerBlock := make([]byte, l)
 	if _, err := io.ReadFull(str.str, headerBlock); err != nil {
 		return nil, err
 	}

@@ -1,7 +1,6 @@
 package http3
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -162,9 +161,6 @@ func responseFromHeaders(headerFields []qpack.HeaderField) (*http.Response, erro
 	hdr, err := parseHeaders(headerFields, false)
 	if err != nil {
 		return nil, err
-	}
-	if hdr.Status == "" {
-		return nil, errors.New("missing status field")
 	}
 	rsp := &http.Response{
 		Proto:         "HTTP/3.0",

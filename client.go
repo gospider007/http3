@@ -26,7 +26,7 @@ type uencoder interface {
 	Close() error
 }
 type uconn interface {
-	CloseWithError(uint64, string) error
+	CloseWithError(string) error
 	OpenStreamSync(context.Context) (io.ReadWriteCloser, error)
 }
 type Client struct {
@@ -42,8 +42,6 @@ func (obj *Client) DoRequest(req *http.Request, orderHeaders []string) (*http.Re
 	if err != nil {
 		return nil, err
 	}
-	// resp, err := obj.doRequest(req, &stream{str: str})
-	// return resp, err
 	return obj.doRequest(req, &stream{str: str})
 }
 func (obj *Client) CloseWithError(err error) error {
@@ -56,7 +54,7 @@ func (obj *Client) CloseWithError(err error) error {
 	if obj.closeFunc != nil {
 		obj.closeFunc()
 	}
-	return obj.conn.CloseWithError(0, errStr)
+	return obj.conn.CloseWithError(errStr)
 }
 
 var NextProtoH3 = http3.NextProtoH3
@@ -73,7 +71,7 @@ type gconn struct {
 func (obj *gconn) OpenStreamSync(ctx context.Context) (io.ReadWriteCloser, error) {
 	return obj.conn.OpenStreamSync(ctx)
 }
-func (obj *gconn) CloseWithError(code uint64, reason string) error {
+func (obj *gconn) CloseWithError(reason string) error {
 	return obj.conn.CloseWithError(0, reason)
 }
 
@@ -84,7 +82,7 @@ type guconn struct {
 func (obj *guconn) OpenStreamSync(ctx context.Context) (io.ReadWriteCloser, error) {
 	return obj.conn.OpenStreamSync(ctx)
 }
-func (obj *guconn) CloseWithError(code uint64, reason string) error {
+func (obj *guconn) CloseWithError(reason string) error {
 	return obj.conn.CloseWithError(0, reason)
 }
 

@@ -5,7 +5,7 @@ go 1.23.0
 require (
 	github.com/gospider007/tools v0.0.0-20250107090942-5b406ab8a72b
 	github.com/quic-go/qpack v0.5.1
-	github.com/quic-go/quic-go v0.48.2
+	github.com/quic-go/quic-go v0.49.0
 	github.com/refraction-networking/uquic v0.0.6
 	golang.org/x/net v0.34.0
 )
@@ -22,7 +22,7 @@ require (
 	github.com/gaukas/godicttls v0.0.4 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
-	github.com/google/pprof v0.0.0-20241210010833-40e02aabc2ad // indirect
+	github.com/google/pprof v0.0.0-20250121033306-997b0b79cac0 // indirect
 	github.com/gospider007/kinds v0.0.0-20240929092451-8f867acde255 // indirect
 	github.com/gospider007/re v0.0.0-20241216142712-efbef8d55ea2 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect

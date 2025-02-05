@@ -26,15 +26,14 @@ func (obj *stream) Close() error {
 }
 func (obj *stream) Read(p []byte) (n int, err error) {
 	if obj.readLen == 0 {
-		data, err := obj.parseNextFrame()
+		t, l, err := obj.parseNextFrame()
 		if err != nil {
 			return 0, err
 		}
-		if frame, ok := data.(*dataFrame); !ok {
+		if t != frameTypeData {
 			return 0, errors.New("not data Frames")
-		} else {
-			obj.readLen = int(frame.Length)
 		}
+		obj.readLen = int(l)
 		if obj.readLen == 0 {
 			obj.Close()
 			return 0, io.EOF
