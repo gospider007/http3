@@ -3,6 +3,7 @@ package http3
 import (
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -12,14 +13,10 @@ import (
 	"golang.org/x/net/http2/hpack"
 )
 
-func (obj *Client) writeRequestHeader(str *stream, req *http.Request) error {
-	return obj.writeHeaders(str, req)
-}
-
-func (obj *Client) writeHeaders(str *stream, req *http.Request) error {
+func (obj *Client) writeHeaders(str *stream, req *http.Request, orderHeaders []string) error {
 	defer obj.encoder.Close()
 	defer obj.headerBuf.Reset()
-	if err := obj.encodeHeaders(req, "", actualContentLength(req)); err != nil {
+	if err := obj.encodeHeaders(req, orderHeaders); err != nil {
 		return err
 	}
 	b := make([]byte, 0, 128)
@@ -30,7 +27,7 @@ func (obj *Client) writeHeaders(str *stream, req *http.Request) error {
 	_, err := str.str.Write(obj.headerBuf.Bytes())
 	return err
 }
-func (obj *Client) encodeHeaders(req *http.Request, trailers string, contentLength int64) error {
+func (obj *Client) encodeHeaders(req *http.Request, orderHeaders []string) error {
 	host := req.Host
 	if host == "" {
 		host = req.URL.Host
@@ -48,7 +45,12 @@ func (obj *Client) encodeHeaders(req *http.Request, trailers string, contentLeng
 			path = strings.TrimPrefix(path, req.URL.Scheme+"://"+host)
 		}
 	}
-	enumerateHeaders := func(f func(name, value string)) {
+	enumerateHeaders := func(replaceF func(name, value string)) {
+		gospiderHeaders := map[string][]string{}
+		f := func(name, value string) {
+			name = strings.ToLower(name)
+			gospiderHeaders[name] = append(gospiderHeaders[name], value)
+		}
 		// 8.1.2.3 Request Pseudo-Header Fields
 		// The :path pseudo-header field includes the path and query parts of the
 		// target URI (the path-absolute production and optionally a '?' character
@@ -62,9 +64,6 @@ func (obj *Client) encodeHeaders(req *http.Request, trailers string, contentLeng
 		}
 		if isExtendedConnect {
 			f(":protocol", req.Proto)
-		}
-		if trailers != "" {
-			f("trailer", trailers)
 		}
 
 		var didUA bool
@@ -94,18 +93,33 @@ func (obj *Client) encodeHeaders(req *http.Request, trailers string, contentLeng
 				if vv[0] == "" {
 					continue
 				}
-
 			}
 
 			for _, v := range vv {
 				f(k, v)
 			}
 		}
-		if shouldSendReqContentLength(req.Method, contentLength) {
+
+		if contentLength := actualContentLength(req); shouldSendReqContentLength(req.Method, contentLength) {
 			f("content-length", strconv.FormatInt(contentLength, 10))
 		}
 		if !didUA {
 			f("user-agent", tools.UserAgent)
+		}
+
+		for _, kk := range orderHeaders {
+			if vvs, ok := gospiderHeaders[kk]; ok {
+				for _, vv := range vvs {
+					replaceF(kk, vv)
+				}
+			}
+		}
+		for kk, vvs := range gospiderHeaders {
+			if !slices.Contains(orderHeaders, kk) {
+				for _, vv := range vvs {
+					replaceF(kk, vv)
+				}
+			}
 		}
 	}
 	// Do a first pass over the headers counting bytes to ensure

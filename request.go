@@ -8,14 +8,13 @@ import (
 
 func sendRequestBody(str *stream, body io.ReadCloser) error {
 	defer body.Close()
-	buf := make([]byte, bodyCopyBufferSize)
-	_, err := io.CopyBuffer(str, body, buf)
+	_, err := io.CopyBuffer(str, body, make([]byte, bodyCopyBufferSize))
 	return err
 }
 
-func (obj *Client) sendRequest(req *http.Request, str *stream) error {
+func (obj *Client) sendRequest(req *http.Request, str *stream, orderHeaders []string) error {
 	defer str.Close()
-	if err := obj.writeRequestHeader(str, req); err != nil {
+	if err := obj.writeHeaders(str, req, orderHeaders); err != nil {
 		return err
 	}
 	if req.Body != nil {
@@ -50,8 +49,8 @@ func (obj *Client) readResponse(req *http.Request, str *stream) (*http.Response,
 	return res, nil
 }
 
-func (obj *Client) doRequest(req *http.Request, str *stream) (*http.Response, error) {
-	err := obj.sendRequest(req, str)
+func (obj *Client) doRequest(req *http.Request, str *stream, orderHeaders []string) (*http.Response, error) {
+	err := obj.sendRequest(req, str, orderHeaders)
 	if err != nil {
 		return nil, err
 	}
