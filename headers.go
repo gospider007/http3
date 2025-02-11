@@ -2,15 +2,13 @@ package http3
 
 import (
 	"fmt"
+	"github.com/quic-go/qpack"
+	"golang.org/x/net/http/httpguts"
+	"golang.org/x/net/http2/hpack"
 	"net/http"
 	"slices"
 	"strconv"
 	"strings"
-
-	"github.com/gospider007/tools"
-	"github.com/quic-go/qpack"
-	"golang.org/x/net/http/httpguts"
-	"golang.org/x/net/http2/hpack"
 )
 
 func (obj *Client) writeHeaders(str *stream, req *http.Request, orderHeaders []string) error {
@@ -36,10 +34,8 @@ func (obj *Client) encodeHeaders(req *http.Request, orderHeaders []string) error
 	if err != nil {
 		return err
 	}
-	// http.NewRequest sets this field to HTTP/1.1
-	isExtendedConnect := req.Method == http.MethodConnect && req.Proto != "" && req.Proto != "HTTP/1.1"
 	var path string
-	if req.Method != http.MethodConnect || isExtendedConnect {
+	if req.Method != http.MethodConnect {
 		path = req.URL.RequestURI()
 		if !validPseudoPath(path) {
 			path = strings.TrimPrefix(path, req.URL.Scheme+"://"+host)
@@ -51,62 +47,30 @@ func (obj *Client) encodeHeaders(req *http.Request, orderHeaders []string) error
 			name = strings.ToLower(name)
 			gospiderHeaders[name] = append(gospiderHeaders[name], value)
 		}
-		// 8.1.2.3 Request Pseudo-Header Fields
-		// The :path pseudo-header field includes the path and query parts of the
-		// target URI (the path-absolute production and optionally a '?' character
-		// followed by the query production (see Sections 3.3 and 3.4 of
-		// [RFC3986]).
 		f(":authority", host)
 		f(":method", req.Method)
-		if req.Method != http.MethodConnect || isExtendedConnect {
+		if req.Method != http.MethodConnect {
 			f(":path", path)
 			f(":scheme", req.URL.Scheme)
 		}
-		if isExtendedConnect {
-			f(":protocol", req.Proto)
-		}
-
-		var didUA bool
 		for k, vv := range req.Header {
-			if strings.EqualFold(k, "host") || strings.EqualFold(k, "content-length") {
-				// Host is :authority, already sent.
-				// Content-Length is automatic, set below.
-				continue
-			} else if strings.EqualFold(k, "connection") || strings.EqualFold(k, "proxy-connection") ||
-				strings.EqualFold(k, "transfer-encoding") || strings.EqualFold(k, "upgrade") ||
-				strings.EqualFold(k, "keep-alive") {
-				// Per 8.1.2.2 Connection-Specific Header
-				// Fields, don't send connection-specific
-				// fields. We have already checked if any
-				// are error-worthy so just ignore the rest.
-				continue
-			} else if strings.EqualFold(k, "user-agent") {
-				// Match Go's http1 behavior: at most one
-				// User-Agent. If set to nil or empty string,
-				// then omit it. Otherwise if not mentioned,
-				// include the default (below).
-				didUA = true
-				if len(vv) < 1 {
-					continue
+			switch strings.ToLower(k) {
+			case "host", "content-length", "connection", "proxy-connection", "transfer-encoding", "upgrade", "keep-alive":
+			case "cookie":
+				for _, v := range vv {
+					for _, c := range strings.Split(v, "; ") {
+						f("cookie", c)
+					}
 				}
-				vv = vv[:1]
-				if vv[0] == "" {
-					continue
+			default:
+				for _, v := range vv {
+					f(k, v)
 				}
-			}
-
-			for _, v := range vv {
-				f(k, v)
 			}
 		}
-
 		if contentLength := actualContentLength(req); shouldSendReqContentLength(req.Method, contentLength) {
 			f("content-length", strconv.FormatInt(contentLength, 10))
 		}
-		if !didUA {
-			f("user-agent", tools.UserAgent)
-		}
-
 		for _, kk := range orderHeaders {
 			if vvs, ok := gospiderHeaders[kk]; ok {
 				for _, vv := range vvs {
@@ -122,10 +86,6 @@ func (obj *Client) encodeHeaders(req *http.Request, orderHeaders []string) error
 			}
 		}
 	}
-	// Do a first pass over the headers counting bytes to ensure
-	// we don't exceed cc.peerMaxHeaderListSize. This is done as a
-	// separate pass before encoding the headers to prevent
-	// modifying the hpack state.
 	hlSize := uint64(0)
 	enumerateHeaders(func(name, value string) {
 		hf := hpack.HeaderField{Name: name, Value: value}
@@ -192,6 +152,8 @@ func responseFromHeaders(headerFields []qpack.HeaderField) (*http.Response, erro
 }
 
 type header struct {
+	// all non-pseudo headers
+	Headers http.Header
 	// Pseudo header fields defined in RFC 9114
 	Path      string
 	Method    string
@@ -202,8 +164,6 @@ type header struct {
 	Protocol string
 	// parsed and deduplicated
 	ContentLength int64
-	// all non-pseudo headers
-	Headers http.Header
 }
 
 func parseHeaders(headers []qpack.HeaderField, isRequest bool) (header, error) {
