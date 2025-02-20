@@ -96,7 +96,11 @@ func (obj *guconn) CloseWithError(reason string) error {
 
 func NewClient(conn quic.EarlyConnection, closeFunc func()) Conn {
 	headerBuf := bytes.NewBuffer(nil)
+	closeCtx, closeCnl := context.WithCancelCause(context.TODO())
 	return &Client{
+		closeCtx: closeCtx,
+		closeCnl: closeCnl,
+
 		closeFunc: closeFunc,
 		conn:      &gconn{conn: conn},
 		decoder:   qpack.NewDecoder(func(hf qpack.HeaderField) {}),
