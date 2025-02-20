@@ -2,13 +2,14 @@ package http3
 
 import (
 	"fmt"
-	"github.com/quic-go/qpack"
-	"golang.org/x/net/http/httpguts"
-	"golang.org/x/net/http2/hpack"
 	"net/http"
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/quic-go/qpack"
+	"golang.org/x/net/http/httpguts"
+	"golang.org/x/net/http2/hpack"
 )
 
 func (obj *Client) writeHeaders(str *stream, req *http.Request, orderHeaders []string) error {

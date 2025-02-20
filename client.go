@@ -35,8 +35,14 @@ type Client struct {
 	decoder   udeocder
 	encoder   uencoder
 	headerBuf *bytes.Buffer
+
+	closeCtx context.Context
+	closeCnl context.CancelCauseFunc
 }
 
+func (obj *Client) CloseCtx() context.Context {
+	return obj.closeCtx
+}
 func (obj *Client) DoRequest(req *http.Request, orderHeaders []string) (*http.Response, error) {
 	str, err := obj.conn.OpenStreamSync(req.Context())
 	if err != nil {
@@ -45,6 +51,7 @@ func (obj *Client) DoRequest(req *http.Request, orderHeaders []string) (*http.Re
 	return obj.doRequest(req, &stream{str: str}, orderHeaders)
 }
 func (obj *Client) CloseWithError(err error) error {
+	obj.closeCnl(err)
 	var errStr string
 	if err == nil {
 		errStr = "Client closed"
@@ -62,6 +69,7 @@ var NextProtoH3 = http3.NextProtoH3
 type Conn interface {
 	CloseWithError(err error) error
 	DoRequest(req *http.Request, orderHeaders []string) (*http.Response, error)
+	CloseCtx() context.Context
 }
 
 type gconn struct {
