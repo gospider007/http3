@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/quic-go/qpack"
 	"github.com/quic-go/quic-go"
@@ -40,15 +41,37 @@ type Client struct {
 	closeCnl context.CancelCauseFunc
 }
 
+func (obj *Client) Stream() io.ReadWriteCloser {
+	return nil
+}
 func (obj *Client) CloseCtx() context.Context {
 	return obj.closeCtx
 }
-func (obj *Client) DoRequest(req *http.Request, orderHeaders []string) (*http.Response, error) {
+
+type cancelCtx struct {
+}
+
+func (obj cancelCtx) Done() <-chan struct{} {
+	c := make(chan struct{})
+	close(c)
+	return c
+}
+func (obj cancelCtx) Err() error {
+	return context.Canceled
+}
+func (obj cancelCtx) Deadline() (time.Time, bool) {
+	return time.Time{}, false
+}
+func (obj cancelCtx) Value(key interface{}) interface{} {
+	return nil
+}
+func (obj *Client) DoRequest(req *http.Request, orderHeaders []string) (*http.Response, context.Context, error) {
 	str, err := obj.conn.OpenStreamSync(req.Context())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return obj.doRequest(req, &stream{str: str}, orderHeaders)
+	response, err := obj.doRequest(req, &stream{str: str}, orderHeaders)
+	return response, cancelCtx{}, err
 }
 func (obj *Client) CloseWithError(err error) error {
 	obj.closeCnl(err)
@@ -68,8 +91,9 @@ var NextProtoH3 = http3.NextProtoH3
 
 type Conn interface {
 	CloseWithError(err error) error
-	DoRequest(req *http.Request, orderHeaders []string) (*http.Response, error)
+	DoRequest(req *http.Request, orderHeaders []string) (*http.Response, context.Context, error)
 	CloseCtx() context.Context
+	Stream() io.ReadWriteCloser
 }
 
 type gconn struct {

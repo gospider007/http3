@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -43,10 +44,9 @@ func (obj *Client) encodeHeaders(req *http.Request, orderHeaders []string) error
 		}
 	}
 	enumerateHeaders := func(replaceF func(name, value string)) {
-		gospiderHeaders := map[string][]string{}
+		gospiderHeaders := [][2]string{}
 		f := func(name, value string) {
-			name = strings.ToLower(name)
-			gospiderHeaders[name] = append(gospiderHeaders[name], value)
+			gospiderHeaders = append(gospiderHeaders, [2]string{strings.ToLower(name), value})
 		}
 		f(":authority", host)
 		f(":method", req.Method)
@@ -72,19 +72,22 @@ func (obj *Client) encodeHeaders(req *http.Request, orderHeaders []string) error
 		if contentLength := actualContentLength(req); shouldSendReqContentLength(req.Method, contentLength) {
 			f("content-length", strconv.FormatInt(contentLength, 10))
 		}
-		for _, kk := range orderHeaders {
-			if vvs, ok := gospiderHeaders[kk]; ok {
-				for _, vv := range vvs {
-					replaceF(kk, vv)
-				}
+		sort.Slice(gospiderHeaders, func(x, y int) bool {
+			xI := slices.Index(orderHeaders, gospiderHeaders[x][0])
+			yI := slices.Index(orderHeaders, gospiderHeaders[y][0])
+			if xI < 0 {
+				return false
 			}
-		}
-		for kk, vvs := range gospiderHeaders {
-			if !slices.Contains(orderHeaders, kk) {
-				for _, vv := range vvs {
-					replaceF(kk, vv)
-				}
+			if yI < 0 {
+				return true
 			}
+			if xI <= yI {
+				return true
+			}
+			return false
+		})
+		for _, kv := range gospiderHeaders {
+			replaceF(kv[0], kv[1])
 		}
 	}
 	hlSize := uint64(0)
