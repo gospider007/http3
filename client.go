@@ -3,6 +3,7 @@ package http3
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"time"
@@ -65,7 +66,10 @@ func (obj cancelCtx) Deadline() (time.Time, bool) {
 func (obj cancelCtx) Value(key interface{}) interface{} {
 	return nil
 }
-func (obj *Client) DoRequest(req *http.Request, orderHeaders []string) (*http.Response, context.Context, error) {
+func (obj *Client) DoRequest(req *http.Request, orderHeaders []interface {
+	Key() string
+	Val() any
+}) (*http.Response, context.Context, error) {
 	str, err := obj.conn.OpenStreamSync(req.Context())
 	if err != nil {
 		return nil, nil, err
@@ -91,7 +95,10 @@ var NextProtoH3 = http3.NextProtoH3
 
 type Conn interface {
 	CloseWithError(err error) error
-	DoRequest(req *http.Request, orderHeaders []string) (*http.Response, context.Context, error)
+	DoRequest(*http.Request, []interface {
+		Key() string
+		Val() any
+	}) (*http.Response, context.Context, error)
 	CloseCtx() context.Context
 	Stream() io.ReadWriteCloser
 }
@@ -118,27 +125,31 @@ func (obj *guconn) CloseWithError(reason string) error {
 	return obj.conn.CloseWithError(0, reason)
 }
 
-func NewClient(conn quic.EarlyConnection, closeFunc func()) Conn {
+func newClient(ctx context.Context, conn uconn, closeFunc func()) Conn {
+	if ctx == nil {
+		ctx = context.TODO()
+	}
 	headerBuf := bytes.NewBuffer(nil)
-	closeCtx, closeCnl := context.WithCancelCause(context.TODO())
+	closeCtx, closeCnl := context.WithCancelCause(ctx)
 	return &Client{
-		closeCtx: closeCtx,
-		closeCnl: closeCnl,
-
+		closeCtx:  closeCtx,
+		closeCnl:  closeCnl,
 		closeFunc: closeFunc,
-		conn:      &gconn{conn: conn},
+		conn:      conn,
 		decoder:   qpack.NewDecoder(func(hf qpack.HeaderField) {}),
 		encoder:   qpack.NewEncoder(headerBuf),
 		headerBuf: headerBuf,
 	}
 }
-func NewUClient(conn uquic.EarlyConnection, closeFunc func()) Conn {
-	headerBuf := bytes.NewBuffer(nil)
-	return &Client{
-		closeFunc: closeFunc,
-		conn:      &guconn{conn: conn},
-		decoder:   qpack.NewDecoder(func(hf qpack.HeaderField) {}),
-		encoder:   qpack.NewEncoder(headerBuf),
-		headerBuf: headerBuf,
+func NewClient(ctx context.Context, conn any, closeFunc func()) (Conn, error) {
+	var wrapCon uconn
+	switch conn := conn.(type) {
+	case uquic.EarlyConnection:
+		wrapCon = &guconn{conn: conn}
+	case quic.EarlyConnection:
+		wrapCon = &gconn{conn: conn}
+	default:
+		return nil, errors.New("unsupported connection type")
 	}
+	return newClient(ctx, wrapCon, closeFunc), nil
 }

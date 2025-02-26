@@ -12,7 +12,10 @@ func sendRequestBody(str *stream, body io.ReadCloser) error {
 	return err
 }
 
-func (obj *Client) sendRequest(req *http.Request, str *stream, orderHeaders []string) error {
+func (obj *Client) sendRequest(req *http.Request, str *stream, orderHeaders []interface {
+	Key() string
+	Val() any
+}) error {
 	defer str.Close()
 	if err := obj.writeHeaders(str, req, orderHeaders); err != nil {
 		return err
@@ -49,7 +52,10 @@ func (obj *Client) readResponse(req *http.Request, str *stream) (*http.Response,
 	return res, nil
 }
 
-func (obj *Client) doRequest(req *http.Request, str *stream, orderHeaders []string) (*http.Response, error) {
+func (obj *Client) doRequest(req *http.Request, str *stream, orderHeaders []interface {
+	Key() string
+	Val() any
+}) (*http.Response, error) {
 	err := obj.sendRequest(req, str, orderHeaders)
 	if err != nil {
 		return nil, err

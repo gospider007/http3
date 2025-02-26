@@ -3,17 +3,18 @@ package http3
 import (
 	"fmt"
 	"net/http"
-	"slices"
-	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/gospider007/tools"
 	"github.com/quic-go/qpack"
 	"golang.org/x/net/http/httpguts"
-	"golang.org/x/net/http2/hpack"
 )
 
-func (obj *Client) writeHeaders(str *stream, req *http.Request, orderHeaders []string) error {
+func (obj *Client) writeHeaders(str *stream, req *http.Request, orderHeaders []interface {
+	Key() string
+	Val() any
+}) error {
 	defer obj.encoder.Close()
 	defer obj.headerBuf.Reset()
 	if err := obj.encodeHeaders(req, orderHeaders); err != nil {
@@ -27,7 +28,10 @@ func (obj *Client) writeHeaders(str *stream, req *http.Request, orderHeaders []s
 	_, err := str.str.Write(obj.headerBuf.Bytes())
 	return err
 }
-func (obj *Client) encodeHeaders(req *http.Request, orderHeaders []string) error {
+func (obj *Client) encodeHeaders(req *http.Request, orderHeaders []interface {
+	Key() string
+	Val() any
+}) error {
 	host := req.Host
 	if host == "" {
 		host = req.URL.Host
@@ -48,11 +52,11 @@ func (obj *Client) encodeHeaders(req *http.Request, orderHeaders []string) error
 		f := func(name, value string) {
 			gospiderHeaders = append(gospiderHeaders, [2]string{strings.ToLower(name), value})
 		}
-		f(":authority", host)
 		f(":method", req.Method)
+		f(":authority", host)
 		if req.Method != http.MethodConnect {
-			f(":path", path)
 			f(":scheme", req.URL.Scheme)
+			f(":path", path)
 		}
 		for k, vv := range req.Header {
 			switch strings.ToLower(k) {
@@ -69,32 +73,15 @@ func (obj *Client) encodeHeaders(req *http.Request, orderHeaders []string) error
 				}
 			}
 		}
-		if contentLength := actualContentLength(req); shouldSendReqContentLength(req.Method, contentLength) {
+
+		if contentLength, _ := tools.GetContentLength(req); contentLength >= 0 {
 			f("content-length", strconv.FormatInt(contentLength, 10))
 		}
-		sort.Slice(gospiderHeaders, func(x, y int) bool {
-			xI := slices.Index(orderHeaders, gospiderHeaders[x][0])
-			yI := slices.Index(orderHeaders, gospiderHeaders[y][0])
-			if xI < 0 {
-				return false
-			}
-			if yI < 0 {
-				return true
-			}
-			if xI <= yI {
-				return true
-			}
-			return false
-		})
-		for _, kv := range gospiderHeaders {
+
+		for _, kv := range tools.NewHeadersWithH2(orderHeaders, gospiderHeaders) {
 			replaceF(kv[0], kv[1])
 		}
 	}
-	hlSize := uint64(0)
-	enumerateHeaders(func(name, value string) {
-		hf := hpack.HeaderField{Name: name, Value: value}
-		hlSize += uint64(hf.Size())
-	})
 	enumerateHeaders(func(name, value string) {
 		name = strings.ToLower(name)
 		obj.encoder.WriteField(qpack.HeaderField{Name: name, Value: value})
@@ -104,37 +91,7 @@ func (obj *Client) encodeHeaders(req *http.Request, orderHeaders []string) error
 func validPseudoPath(v string) bool {
 	return (len(v) > 0 && v[0] == '/') || v == "*"
 }
-func actualContentLength(req *http.Request) int64 {
-	if req.Body == nil {
-		return 0
-	}
-	if req.ContentLength != 0 {
-		return req.ContentLength
-	}
-	return -1
-}
 
-// shouldSendReqContentLength reports whether the http2.Transport should send
-// a "content-length" request header. This logic is basically a copy of the net/http
-// transferWriter.shouldSendContentLength.
-// The contentLength is the corrected contentLength (so 0 means actually 0, not unknown).
-// -1 means unknown.
-func shouldSendReqContentLength(method string, contentLength int64) bool {
-	if contentLength > 0 {
-		return true
-	}
-	if contentLength < 0 {
-		return false
-	}
-	// For zero bodies, whether we send a content-length depends on the method.
-	// It also kinda doesn't matter for http2 either way, with END_STREAM.
-	switch method {
-	case "POST", "PUT", "PATCH":
-		return true
-	default:
-		return false
-	}
-}
 func responseFromHeaders(headerFields []qpack.HeaderField) (*http.Response, error) {
 	hdr, err := parseHeaders(headerFields, false)
 	if err != nil {
