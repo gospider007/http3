@@ -26,7 +26,7 @@ func (obj *Client) sendRequest(req *http.Request, str *stream, orderHeaders []in
 	return nil
 }
 
-func (obj *Client) readResponse(req *http.Request, str *stream) (*http.Response, error) {
+func (obj *Client) readResponse(str *stream) (*http.Response, error) {
 	defer str.Close()
 	t, l, err := str.parseNextFrame()
 	if err != nil {
@@ -47,7 +47,6 @@ func (obj *Client) readResponse(req *http.Request, str *stream) (*http.Response,
 	if err != nil {
 		return nil, err
 	}
-	res.Request = req
 	res.Body = str
 	return res, nil
 }
@@ -60,5 +59,5 @@ func (obj *Client) doRequest(req *http.Request, str *stream, orderHeaders []inte
 	if err != nil {
 		return nil, err
 	}
-	return obj.readResponse(req, str)
+	return obj.readResponse(str)
 }
