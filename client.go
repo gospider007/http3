@@ -37,16 +37,10 @@ type Client struct {
 	decoder   udeocder
 	encoder   uencoder
 	headerBuf *bytes.Buffer
-
-	closeCtx context.Context
-	closeCnl context.CancelCauseFunc
 }
 
 func (obj *Client) Stream() io.ReadWriteCloser {
 	return nil
-}
-func (obj *Client) CloseCtx() context.Context {
-	return obj.closeCtx
 }
 
 type cancelCtx struct {
@@ -78,15 +72,14 @@ func (obj *Client) DoRequest(req *http.Request, orderHeaders []interface {
 	return response, cancelCtx{}, err
 }
 func (obj *Client) CloseWithError(err error) error {
-	obj.closeCnl(err)
+	if obj.closeFunc != nil {
+		obj.closeFunc()
+	}
 	var errStr string
 	if err == nil {
 		errStr = "Client closed"
 	} else {
 		errStr = err.Error()
-	}
-	if obj.closeFunc != nil {
-		obj.closeFunc()
 	}
 	return obj.conn.CloseWithError(errStr)
 }
@@ -99,7 +92,6 @@ type Conn interface {
 		Key() string
 		Val() any
 	}) (*http.Response, context.Context, error)
-	CloseCtx() context.Context
 	Stream() io.ReadWriteCloser
 }
 
@@ -125,15 +117,9 @@ func (obj *guconn) CloseWithError(reason string) error {
 	return obj.conn.CloseWithError(0, reason)
 }
 
-func newClient(ctx context.Context, conn uconn, closeFunc func()) Conn {
-	if ctx == nil {
-		ctx = context.TODO()
-	}
+func newClient(conn uconn, closeFunc func()) Conn {
 	headerBuf := bytes.NewBuffer(nil)
-	closeCtx, closeCnl := context.WithCancelCause(ctx)
 	return &Client{
-		closeCtx:  closeCtx,
-		closeCnl:  closeCnl,
 		closeFunc: closeFunc,
 		conn:      conn,
 		decoder:   qpack.NewDecoder(func(hf qpack.HeaderField) {}),
@@ -141,7 +127,7 @@ func newClient(ctx context.Context, conn uconn, closeFunc func()) Conn {
 		headerBuf: headerBuf,
 	}
 }
-func NewClient(ctx context.Context, conn any, closeFunc func()) (Conn, error) {
+func NewClient(conn any, closeFunc func()) (Conn, error) {
 	var wrapCon uconn
 	switch conn := conn.(type) {
 	case uquic.EarlyConnection:
@@ -151,5 +137,5 @@ func NewClient(ctx context.Context, conn any, closeFunc func()) (Conn, error) {
 	default:
 		return nil, errors.New("unsupported connection type")
 	}
-	return newClient(ctx, wrapCon, closeFunc), nil
+	return newClient(wrapCon, closeFunc), nil
 }
