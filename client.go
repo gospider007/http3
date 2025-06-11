@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
@@ -96,25 +97,29 @@ type Conn interface {
 }
 
 type gconn struct {
-	conn quic.EarlyConnection
+	conn    quic.EarlyConnection
+	udpConn net.PacketConn
 }
 
 func (obj *gconn) OpenStreamSync(ctx context.Context) (io.ReadWriteCloser, error) {
 	return obj.conn.OpenStreamSync(ctx)
 }
 func (obj *gconn) CloseWithError(reason string) error {
-	return obj.conn.CloseWithError(0, reason)
+	obj.conn.CloseWithError(0, reason)
+	return obj.udpConn.Close()
 }
 
 type guconn struct {
-	conn uquic.EarlyConnection
+	conn    uquic.EarlyConnection
+	udpConn net.PacketConn
 }
 
 func (obj *guconn) OpenStreamSync(ctx context.Context) (io.ReadWriteCloser, error) {
 	return obj.conn.OpenStreamSync(ctx)
 }
 func (obj *guconn) CloseWithError(reason string) error {
-	return obj.conn.CloseWithError(0, reason)
+	obj.conn.CloseWithError(0, reason)
+	return obj.udpConn.Close()
 }
 
 func newClient(conn uconn, closeFunc func()) Conn {
@@ -127,13 +132,13 @@ func newClient(conn uconn, closeFunc func()) Conn {
 		headerBuf: headerBuf,
 	}
 }
-func NewClient(conn any, closeFunc func()) (Conn, error) {
+func NewClient(conn any, udpConn net.PacketConn, closeFunc func()) (Conn, error) {
 	var wrapCon uconn
 	switch conn := conn.(type) {
 	case uquic.EarlyConnection:
-		wrapCon = &guconn{conn: conn}
+		wrapCon = &guconn{conn: conn, udpConn: udpConn}
 	case quic.EarlyConnection:
-		wrapCon = &gconn{conn: conn}
+		wrapCon = &gconn{conn: conn, udpConn: udpConn}
 	default:
 		return nil, errors.New("unsupported connection type")
 	}
