@@ -3,16 +3,16 @@ module github.com/gospider007/http3
 go 1.24.0
 
 require (
-	github.com/gospider007/tools v0.0.0-20250413024541-d6fc8f3bf399
+	github.com/gospider007/tools v0.0.0-20250623092633-4c8b251d2f4a
 	github.com/quic-go/qpack v0.5.1
-	github.com/quic-go/quic-go v0.52.0
+	github.com/quic-go/quic-go v0.53.0
 	github.com/refraction-networking/uquic v0.0.6
 	golang.org/x/net v0.41.0
 )
 
 require (
 	github.com/STARRY-S/zip v0.2.3 // indirect
-	github.com/andybalholm/brotli v1.1.2-0.20250424173009-453214e765f3 // indirect
+	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/bodgit/plumbing v1.3.0 // indirect
 	github.com/bodgit/sevenzip v1.6.1 // indirect
 	github.com/bodgit/windows v1.0.1 // indirect

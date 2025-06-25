@@ -97,7 +97,7 @@ type Conn interface {
 }
 
 type gconn struct {
-	conn    quic.EarlyConnection
+	conn    *quic.Conn
 	udpConn net.PacketConn
 }
 
@@ -137,7 +137,7 @@ func NewClient(conn any, udpConn net.PacketConn, closeFunc func()) (Conn, error)
 	switch conn := conn.(type) {
 	case uquic.EarlyConnection:
 		wrapCon = &guconn{conn: conn, udpConn: udpConn}
-	case quic.EarlyConnection:
+	case *quic.Conn:
 		wrapCon = &gconn{conn: conn, udpConn: udpConn}
 	default:
 		return nil, errors.New("unsupported connection type")
