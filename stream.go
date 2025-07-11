@@ -24,6 +24,9 @@ func (obj *stream) Write(b []byte) (int, error) {
 func (obj *stream) Close() error {
 	return obj.str.Close()
 }
+func (obj *stream) CloseWithError(err error) error {
+	return obj.str.Close()
+}
 func (obj *stream) Read(p []byte) (n int, err error) {
 	if obj.readLen == 0 {
 		t, l, err := obj.parseNextFrame()

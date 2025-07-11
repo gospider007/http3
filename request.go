@@ -55,9 +55,37 @@ func (obj *Client) doRequest(req *http.Request, str *stream, orderHeaders []inte
 	Key() string
 	Val() any
 }) (*http.Response, error) {
-	err := obj.sendRequest(req, str, orderHeaders)
-	if err != nil {
-		return nil, err
+	var writeErr error
+	var readErr error
+	var resp *http.Response
+	writeDone := make(chan struct{})
+	readDone := make(chan struct{})
+	go func() {
+		writeErr = obj.sendRequest(req, str, orderHeaders)
+		close(writeDone)
+	}()
+	go func() {
+		resp, readErr = obj.readResponse(str)
+		close(readDone)
+	}()
+	select {
+	case <-writeDone:
+		if writeErr != nil {
+			return nil, writeErr
+		}
+		select {
+		case <-readDone:
+			return resp, readErr
+		case <-obj.ctx.Done():
+			return nil, obj.ctx.Err()
+		case <-req.Context().Done():
+			return nil, req.Context().Err()
+		}
+	case <-readDone:
+		return resp, readErr
+	case <-obj.ctx.Done():
+		return nil, obj.ctx.Err()
+	case <-req.Context().Done():
+		return nil, req.Context().Err()
 	}
-	return obj.readResponse(str)
 }

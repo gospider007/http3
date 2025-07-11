@@ -3,11 +3,9 @@ package http3
 import (
 	"bytes"
 	"context"
-	"errors"
 	"io"
 	"net"
 	"net/http"
-	"time"
 
 	"github.com/quic-go/qpack"
 	"github.com/quic-go/quic-go"
@@ -30,9 +28,11 @@ type uencoder interface {
 }
 type uconn interface {
 	CloseWithError(string) error
-	OpenStreamSync(context.Context) (io.ReadWriteCloser, error)
+	OpenStream() (io.ReadWriteCloser, error)
 }
 type Client struct {
+	ctx       context.Context
+	cnl       context.CancelCauseFunc
 	closeFunc func()
 	conn      uconn
 	decoder   udeocder
@@ -44,35 +44,20 @@ func (obj *Client) Stream() io.ReadWriteCloser {
 	return nil
 }
 
-type cancelCtx struct {
-}
-
-func (obj cancelCtx) Done() <-chan struct{} {
-	c := make(chan struct{})
-	close(c)
-	return c
-}
-func (obj cancelCtx) Err() error {
-	return context.Canceled
-}
-func (obj cancelCtx) Deadline() (time.Time, bool) {
-	return time.Time{}, false
-}
-func (obj cancelCtx) Value(key interface{}) interface{} {
-	return nil
-}
 func (obj *Client) DoRequest(req *http.Request, orderHeaders []interface {
 	Key() string
 	Val() any
 }) (*http.Response, context.Context, error) {
-	str, err := obj.conn.OpenStreamSync(req.Context())
+	str, err := obj.conn.OpenStream()
 	if err != nil {
 		return nil, nil, err
 	}
 	response, err := obj.doRequest(req, &stream{str: str}, orderHeaders)
-	return response, cancelCtx{}, err
+	return response, nil, err
 }
+
 func (obj *Client) CloseWithError(err error) error {
+	obj.cnl(err)
 	if obj.closeFunc != nil {
 		obj.closeFunc()
 	}
@@ -101,8 +86,8 @@ type gconn struct {
 	udpConn net.PacketConn
 }
 
-func (obj *gconn) OpenStreamSync(ctx context.Context) (io.ReadWriteCloser, error) {
-	return obj.conn.OpenStreamSync(ctx)
+func (obj *gconn) OpenStream() (io.ReadWriteCloser, error) {
+	return obj.conn.OpenStream()
 }
 func (obj *gconn) CloseWithError(reason string) error {
 	obj.conn.CloseWithError(0, reason)
@@ -114,8 +99,8 @@ type guconn struct {
 	udpConn net.PacketConn
 }
 
-func (obj *guconn) OpenStreamSync(ctx context.Context) (io.ReadWriteCloser, error) {
-	return obj.conn.OpenStreamSync(ctx)
+func (obj *guconn) OpenStream() (io.ReadWriteCloser, error) {
+	return obj.conn.OpenStream()
 }
 func (obj *guconn) CloseWithError(reason string) error {
 	obj.conn.CloseWithError(0, reason)
@@ -124,7 +109,10 @@ func (obj *guconn) CloseWithError(reason string) error {
 
 func newClient(conn uconn, closeFunc func()) Conn {
 	headerBuf := bytes.NewBuffer(nil)
+	ctx, cnl := context.WithCancelCause(context.TODO())
 	return &Client{
+		ctx:       ctx,
+		cnl:       cnl,
 		closeFunc: closeFunc,
 		conn:      conn,
 		decoder:   qpack.NewDecoder(func(hf qpack.HeaderField) {}),
@@ -132,7 +120,7 @@ func newClient(conn uconn, closeFunc func()) Conn {
 		headerBuf: headerBuf,
 	}
 }
-func NewClient(conn any, udpConn net.PacketConn, closeFunc func()) (Conn, error) {
+func NewClient(conn any, udpConn net.PacketConn, closeFunc func()) Conn {
 	var wrapCon uconn
 	switch conn := conn.(type) {
 	case uquic.EarlyConnection:
@@ -140,7 +128,7 @@ func NewClient(conn any, udpConn net.PacketConn, closeFunc func()) (Conn, error)
 	case *quic.Conn:
 		wrapCon = &gconn{conn: conn, udpConn: udpConn}
 	default:
-		return nil, errors.New("unsupported connection type")
+		return nil
 	}
-	return newClient(wrapCon, closeFunc), nil
+	return newClient(wrapCon, closeFunc)
 }
