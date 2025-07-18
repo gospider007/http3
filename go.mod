@@ -3,7 +3,7 @@ module github.com/gospider007/http3
 go 1.24.0
 
 require (
-	github.com/gospider007/tools v0.0.0-20250630120304-b22c2ddf35b5
+	github.com/gospider007/tools v0.0.0-20250711035142-241d6041da43
 	github.com/quic-go/qpack v0.5.1
 	github.com/quic-go/quic-go v0.53.0
 	github.com/refraction-networking/uquic v0.0.6
@@ -43,13 +43,13 @@ require (
 	go.uber.org/mock v0.5.2 // indirect
 	go4.org v0.0.0-20230225012048-214862532bf5 // indirect
 	golang.org/x/crypto v0.40.0 // indirect
-	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
+	golang.org/x/exp v0.0.0-20250717185816-542afb5b7346 // indirect
 	golang.org/x/image v0.29.0 // indirect
 	golang.org/x/mod v0.26.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/sys v0.34.0 // indirect
 	golang.org/x/text v0.27.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
-	golang.org/x/tools v0.34.0 // indirect
+	golang.org/x/tools v0.35.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 )

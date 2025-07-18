@@ -1,9 +1,12 @@
 package http3
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
+
+	"github.com/gospider007/tools"
 )
 
 func sendRequestBody(str *stream, body io.ReadCloser) error {
@@ -26,37 +29,55 @@ func (obj *Client) sendRequest(req *http.Request, str *stream, orderHeaders []in
 	return nil
 }
 
-func (obj *Client) readResponse(str *stream) (*http.Response, error) {
-	defer str.Close()
+type clientBody struct {
+	r   io.ReadWriteCloser
+	cnl context.CancelCauseFunc
+}
+
+func (obj *clientBody) Read(p []byte) (n int, err error) {
+	return obj.r.Read(p)
+}
+func (obj *clientBody) Close() error {
+	obj.CloseWithError(tools.ErrNoErr)
+	return obj.r.Close()
+}
+func (obj *clientBody) CloseWithError(err error) error {
+	obj.cnl(err)
+	return obj.r.Close()
+}
+func (obj *Client) readResponse(str *stream) (*http.Response, context.Context, error) {
 	t, l, err := str.parseNextFrame()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if t != frameTypeHeaders {
-		return nil, errors.New("not headers Frames")
+		return nil, nil, errors.New("not headers Frames")
 	}
 	headerBlock := make([]byte, l)
 	if _, err := io.ReadFull(str.str, headerBlock); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	hfs, err := obj.decoder.DecodeFull(headerBlock)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	res, err := responseFromHeaders(hfs)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	ctx, cnl := context.WithCancelCause(obj.ctx)
 	res.Body = str
-	return res, nil
+	res.Body = &clientBody{r: str, cnl: cnl}
+	return res, ctx, nil
 }
 
 func (obj *Client) doRequest(req *http.Request, str *stream, orderHeaders []interface {
 	Key() string
 	Val() any
-}) (*http.Response, error) {
+}) (*http.Response, context.Context, error) {
 	var writeErr error
 	var readErr error
+	var ctx context.Context
 	var resp *http.Response
 	writeDone := make(chan struct{})
 	readDone := make(chan struct{})
@@ -65,27 +86,27 @@ func (obj *Client) doRequest(req *http.Request, str *stream, orderHeaders []inte
 		close(writeDone)
 	}()
 	go func() {
-		resp, readErr = obj.readResponse(str)
+		resp, ctx, readErr = obj.readResponse(str)
 		close(readDone)
 	}()
 	select {
 	case <-writeDone:
 		if writeErr != nil {
-			return nil, writeErr
+			return nil, ctx, writeErr
 		}
 		select {
 		case <-readDone:
-			return resp, readErr
+			return resp, ctx, readErr
 		case <-obj.ctx.Done():
-			return nil, obj.ctx.Err()
+			return nil, ctx, obj.ctx.Err()
 		case <-req.Context().Done():
-			return nil, req.Context().Err()
+			return nil, ctx, req.Context().Err()
 		}
 	case <-readDone:
-		return resp, readErr
+		return resp, ctx, readErr
 	case <-obj.ctx.Done():
-		return nil, obj.ctx.Err()
+		return nil, ctx, obj.ctx.Err()
 	case <-req.Context().Done():
-		return nil, req.Context().Err()
+		return nil, ctx, req.Context().Err()
 	}
 }
