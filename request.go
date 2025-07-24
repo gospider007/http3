@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/gospider007/tools"
+	"github.com/gospider007/http1"
 )
 
 func sendRequestBody(str *stream, body io.ReadCloser) error {
@@ -29,22 +29,6 @@ func (obj *Client) sendRequest(req *http.Request, str *stream, orderHeaders []in
 	return nil
 }
 
-type clientBody struct {
-	r   io.ReadWriteCloser
-	cnl context.CancelCauseFunc
-}
-
-func (obj *clientBody) Read(p []byte) (n int, err error) {
-	return obj.r.Read(p)
-}
-func (obj *clientBody) Close() error {
-	obj.CloseWithError(tools.ErrNoErr)
-	return obj.r.Close()
-}
-func (obj *clientBody) CloseWithError(err error) error {
-	obj.cnl(err)
-	return obj.r.Close()
-}
 func (obj *Client) readResponse(str *stream) (*http.Response, context.Context, error) {
 	t, l, err := str.parseNextFrame()
 	if err != nil {
@@ -66,8 +50,7 @@ func (obj *Client) readResponse(str *stream) (*http.Response, context.Context, e
 		return nil, nil, err
 	}
 	ctx, cnl := context.WithCancelCause(obj.ctx)
-	res.Body = str
-	res.Body = &clientBody{r: str, cnl: cnl}
+	res.Body = http1.NewClientBody(str, obj, cnl, nil)
 	return res, ctx, nil
 }
 
@@ -103,6 +86,9 @@ func (obj *Client) doRequest(req *http.Request, str *stream, orderHeaders []inte
 			return nil, ctx, req.Context().Err()
 		}
 	case <-readDone:
+		if readErr == nil {
+			resp.Body.(*http1.ClientBody).SetWriteDone(writeDone)
+		}
 		return resp, ctx, readErr
 	case <-obj.ctx.Done():
 		return nil, ctx, obj.ctx.Err()

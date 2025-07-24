@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/gospider007/http1"
 	"github.com/quic-go/qpack"
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
@@ -44,15 +45,12 @@ func (obj *Client) Stream() io.ReadWriteCloser {
 	return nil
 }
 
-func (obj *Client) DoRequest(req *http.Request, orderHeaders []interface {
-	Key() string
-	Val() any
-}) (*http.Response, context.Context, error) {
+func (obj *Client) DoRequest(req *http.Request, option *http1.Option) (*http.Response, context.Context, error) {
 	str, err := obj.conn.OpenStream()
 	if err != nil {
 		return nil, nil, err
 	}
-	response, ctx, err := obj.doRequest(req, &stream{str: str}, orderHeaders)
+	response, ctx, err := obj.doRequest(req, &stream{str: str}, option.OrderHeaders)
 	return response, ctx, err
 }
 
@@ -71,15 +69,6 @@ func (obj *Client) CloseWithError(err error) error {
 }
 
 var NextProtoH3 = http3.NextProtoH3
-
-type Conn interface {
-	CloseWithError(err error) error
-	DoRequest(*http.Request, []interface {
-		Key() string
-		Val() any
-	}) (*http.Response, context.Context, error)
-	Stream() io.ReadWriteCloser
-}
 
 type gconn struct {
 	conn    *quic.Conn
@@ -107,9 +96,9 @@ func (obj *guconn) CloseWithError(reason string) error {
 	return obj.udpConn.Close()
 }
 
-func newClient(conn uconn, closeFunc func()) Conn {
+func newClient(preCtx context.Context, conn uconn, closeFunc func()) http1.Conn {
 	headerBuf := bytes.NewBuffer(nil)
-	ctx, cnl := context.WithCancelCause(context.TODO())
+	ctx, cnl := context.WithCancelCause(preCtx)
 	return &Client{
 		ctx:       ctx,
 		cnl:       cnl,
@@ -120,7 +109,7 @@ func newClient(conn uconn, closeFunc func()) Conn {
 		headerBuf: headerBuf,
 	}
 }
-func NewClient(conn any, udpConn net.PacketConn, closeFunc func()) Conn {
+func NewClient(ctx context.Context, conn any, udpConn net.PacketConn, closeFunc func()) http1.Conn {
 	var wrapCon uconn
 	switch conn := conn.(type) {
 	case uquic.EarlyConnection:
@@ -130,5 +119,5 @@ func NewClient(conn any, udpConn net.PacketConn, closeFunc func()) Conn {
 	default:
 		return nil
 	}
-	return newClient(wrapCon, closeFunc)
+	return newClient(ctx, wrapCon, closeFunc)
 }
