@@ -3,7 +3,7 @@ module github.com/gospider007/http3
 go 1.24.0
 
 require (
-	github.com/gospider007/http1 v0.0.0-20250718091014-9ea72dfb1370
+	github.com/gospider007/http1 v0.0.0-20250724084910-07394a59f833
 	github.com/gospider007/tools v0.0.0-20250718003809-7c62cd0ee920
 	github.com/quic-go/qpack v0.5.1
 	github.com/quic-go/quic-go v0.54.0

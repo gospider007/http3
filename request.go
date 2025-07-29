@@ -29,70 +29,75 @@ func (obj *Client) sendRequest(req *http.Request, str *stream, orderHeaders []in
 	return nil
 }
 
-func (obj *Client) readResponse(str *stream) (*http.Response, context.Context, error) {
+func (obj *Client) readResponse(str *stream) (*http.Response, error) {
 	t, l, err := str.parseNextFrame()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if t != frameTypeHeaders {
-		return nil, nil, errors.New("not headers Frames")
+		return nil, errors.New("not headers Frames")
 	}
 	headerBlock := make([]byte, l)
 	if _, err := io.ReadFull(str.str, headerBlock); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	hfs, err := obj.decoder.DecodeFull(headerBlock)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	res, err := responseFromHeaders(hfs)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	ctx, cnl := context.WithCancelCause(obj.ctx)
-	res.Body = http1.NewClientBody(str, obj, cnl, nil)
-	return res, ctx, nil
+	res.Body = http1.NewBody(str, obj, ctx, cnl, nil)
+	return res, nil
 }
 
 func (obj *Client) doRequest(req *http.Request, str *stream, orderHeaders []interface {
 	Key() string
 	Val() any
-}) (*http.Response, context.Context, error) {
+}) (*http.Response, error) {
 	var writeErr error
 	var readErr error
-	var ctx context.Context
 	var resp *http.Response
 	writeDone := make(chan struct{})
 	readDone := make(chan struct{})
 	go func() {
+		defer close(writeDone)
 		writeErr = obj.sendRequest(req, str, orderHeaders)
-		close(writeDone)
+		if writeErr != nil {
+			obj.CloseWithError(writeErr)
+		}
 	}()
 	go func() {
-		resp, ctx, readErr = obj.readResponse(str)
-		close(readDone)
+		defer close(readDone)
+		resp, readErr = obj.readResponse(str)
+		if readErr != nil {
+			obj.CloseWithError(readErr)
+		}
 	}()
 	select {
 	case <-writeDone:
 		if writeErr != nil {
-			return nil, ctx, writeErr
+			return nil, writeErr
 		}
 		select {
 		case <-readDone:
-			return resp, ctx, readErr
+			return resp, readErr
 		case <-obj.ctx.Done():
-			return nil, ctx, obj.ctx.Err()
+			return nil, obj.ctx.Err()
 		case <-req.Context().Done():
-			return nil, ctx, req.Context().Err()
+			return nil, req.Context().Err()
 		}
 	case <-readDone:
 		if readErr == nil {
-			resp.Body.(*http1.ClientBody).SetWriteDone(writeDone)
+			resp.Body.(*http1.Body).SetWriteDone(writeDone)
 		}
-		return resp, ctx, readErr
+		return resp, readErr
 	case <-obj.ctx.Done():
-		return nil, ctx, obj.ctx.Err()
+		return nil, obj.ctx.Err()
 	case <-req.Context().Done():
-		return nil, ctx, req.Context().Err()
+		return nil, req.Context().Err()
 	}
 }

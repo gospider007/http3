@@ -41,17 +41,24 @@ type Client struct {
 	headerBuf *bytes.Buffer
 }
 
+func (obj *Client) Context() context.Context {
+	return obj.ctx
+}
+
 func (obj *Client) Stream() io.ReadWriteCloser {
 	return nil
 }
 
-func (obj *Client) DoRequest(req *http.Request, option *http1.Option) (*http.Response, context.Context, error) {
+func (obj *Client) DoRequest(req *http.Request, option *http1.Option) (*http.Response, error) {
 	str, err := obj.conn.OpenStream()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	response, ctx, err := obj.doRequest(req, &stream{str: str}, option.OrderHeaders)
-	return response, ctx, err
+	response, err := obj.doRequest(req, &stream{str: str}, option.OrderHeaders)
+	if err != nil {
+		obj.CloseWithError(err)
+	}
+	return response, err
 }
 
 func (obj *Client) CloseWithError(err error) error {
