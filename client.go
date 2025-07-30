@@ -49,12 +49,12 @@ func (obj *Client) Stream() io.ReadWriteCloser {
 	return nil
 }
 
-func (obj *Client) DoRequest(req *http.Request, option *http1.Option) (*http.Response, error) {
+func (obj *Client) DoRequest(ctx context.Context, req *http.Request, option *http1.Option) (*http.Response, error) {
 	str, err := obj.conn.OpenStream()
 	if err != nil {
 		return nil, err
 	}
-	response, err := obj.doRequest(req, &stream{str: str}, option.OrderHeaders)
+	response, err := obj.doRequest(ctx, req, &stream{str: str}, option.OrderHeaders)
 	if err != nil {
 		obj.CloseWithError(err)
 	}

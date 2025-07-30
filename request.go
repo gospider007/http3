@@ -54,7 +54,7 @@ func (obj *Client) readResponse(str *stream) (*http.Response, error) {
 	return res, nil
 }
 
-func (obj *Client) doRequest(req *http.Request, str *stream, orderHeaders []interface {
+func (obj *Client) doRequest(ctx context.Context, req *http.Request, str *stream, orderHeaders []interface {
 	Key() string
 	Val() any
 }) (*http.Response, error) {
@@ -85,19 +85,19 @@ func (obj *Client) doRequest(req *http.Request, str *stream, orderHeaders []inte
 		select {
 		case <-readDone:
 			return resp, readErr
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		case <-obj.ctx.Done():
 			return nil, obj.ctx.Err()
-		case <-req.Context().Done():
-			return nil, req.Context().Err()
 		}
 	case <-readDone:
 		if readErr == nil {
 			resp.Body.(*http1.Body).SetWriteDone(writeDone)
 		}
 		return resp, readErr
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	case <-obj.ctx.Done():
 		return nil, obj.ctx.Err()
-	case <-req.Context().Done():
-		return nil, req.Context().Err()
 	}
 }
