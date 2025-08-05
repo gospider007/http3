@@ -116,7 +116,7 @@ func newClient(preCtx context.Context, conn uconn, closeFunc func()) http1.Conn 
 		headerBuf: headerBuf,
 	}
 }
-func NewClient(ctx context.Context, conn any, udpConn net.PacketConn, closeFunc func()) http1.Conn {
+func NewConn(ctx context.Context, conn any, udpConn net.PacketConn, closeFunc func()) http1.Conn {
 	var wrapCon uconn
 	switch conn := conn.(type) {
 	case uquic.EarlyConnection:

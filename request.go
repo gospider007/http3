@@ -50,7 +50,7 @@ func (obj *Client) readResponse(str *stream) (*http.Response, error) {
 		return nil, err
 	}
 	ctx, cnl := context.WithCancelCause(obj.ctx)
-	res.Body = http1.NewBody(str, obj, ctx, cnl, nil)
+	res.Body = http1.NewBody(str, obj, ctx, cnl, false, nil)
 	return res, nil
 }
 
