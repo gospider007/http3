@@ -10,7 +10,6 @@ import (
 	"github.com/gospider007/http1"
 	"github.com/quic-go/qpack"
 	"github.com/quic-go/quic-go"
-	"github.com/quic-go/quic-go/http3"
 
 	uquic "github.com/refraction-networking/uquic"
 )
@@ -75,7 +74,7 @@ func (obj *Client) CloseWithError(err error) error {
 	return obj.conn.CloseWithError(errStr)
 }
 
-var NextProtoH3 = http3.NextProtoH3
+var NextProtoH3 = "h3"
 
 type gconn struct {
 	conn    *quic.Conn
