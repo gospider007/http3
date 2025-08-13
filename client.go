@@ -33,7 +33,6 @@ type uconn interface {
 type Client struct {
 	ctx       context.Context
 	cnl       context.CancelCauseFunc
-	closeFunc func()
 	conn      uconn
 	decoder   udeocder
 	encoder   uencoder
@@ -62,9 +61,6 @@ func (obj *Client) DoRequest(ctx context.Context, req *http.Request, option *htt
 
 func (obj *Client) CloseWithError(err error) error {
 	obj.cnl(err)
-	if obj.closeFunc != nil {
-		obj.closeFunc()
-	}
 	var errStr string
 	if err == nil {
 		errStr = "Client closed"
@@ -102,20 +98,19 @@ func (obj *guconn) CloseWithError(reason string) error {
 	return obj.udpConn.Close()
 }
 
-func newClient(preCtx context.Context, conn uconn, closeFunc func()) http1.Conn {
+func newClient(preCtx context.Context, conn uconn) http1.Conn {
 	headerBuf := bytes.NewBuffer(nil)
 	ctx, cnl := context.WithCancelCause(preCtx)
 	return &Client{
 		ctx:       ctx,
 		cnl:       cnl,
-		closeFunc: closeFunc,
 		conn:      conn,
 		decoder:   qpack.NewDecoder(func(hf qpack.HeaderField) {}),
 		encoder:   qpack.NewEncoder(headerBuf),
 		headerBuf: headerBuf,
 	}
 }
-func NewConn(ctx context.Context, conn any, udpConn net.PacketConn, closeFunc func()) http1.Conn {
+func NewConn(ctx context.Context, conn any, udpConn net.PacketConn) http1.Conn {
 	var wrapCon uconn
 	switch conn := conn.(type) {
 	case uquic.EarlyConnection:
@@ -125,5 +120,5 @@ func NewConn(ctx context.Context, conn any, udpConn net.PacketConn, closeFunc fu
 	default:
 		return nil
 	}
-	return newClient(ctx, wrapCon, closeFunc)
+	return newClient(ctx, wrapCon)
 }
