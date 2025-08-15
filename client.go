@@ -31,12 +31,20 @@ type uconn interface {
 	OpenStream() (io.ReadWriteCloser, error)
 }
 type Client struct {
-	ctx       context.Context
-	cnl       context.CancelCauseFunc
-	conn      uconn
-	decoder   udeocder
-	encoder   uencoder
-	headerBuf *bytes.Buffer
+	ctx         context.Context
+	cnl         context.CancelCauseFunc
+	conn        uconn
+	decoder     udeocder
+	encoder     uencoder
+	headerBuf   *bytes.Buffer
+	bodyContext context.Context
+}
+
+func (obj *Client) SetBodyContext(ctx context.Context) {
+	obj.bodyContext = ctx
+}
+func (obj *Client) BodyContext() context.Context {
+	return obj.bodyContext
 }
 
 func (obj *Client) Context() context.Context {

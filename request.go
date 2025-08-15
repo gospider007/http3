@@ -58,6 +58,13 @@ func (obj *Client) doRequest(ctx context.Context, req *http.Request, str *stream
 	Key() string
 	Val() any
 }) (*http.Response, error) {
+	if bodyContext := obj.BodyContext(); bodyContext != nil {
+		select {
+		case <-bodyContext.Done():
+		default:
+			return nil, errors.New("body is busy")
+		}
+	}
 	var writeErr error
 	var readErr error
 	var resp *http.Response
