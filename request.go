@@ -96,8 +96,10 @@ func (obj *Client) doRequest(ctx context.Context, req *http.Request, str *stream
 		}
 		return resp, readErr
 	case <-ctx.Done():
+		obj.CloseWithError(ctx.Err())
 		return nil, ctx.Err()
 	case <-obj.ctx.Done():
+		obj.CloseWithError(obj.ctx.Err())
 		return nil, obj.ctx.Err()
 	}
 }
