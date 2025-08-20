@@ -3,8 +3,8 @@ module github.com/gospider007/http3
 go 1.25
 
 require (
-	github.com/gospider007/http1 v0.0.0-20250817122009-0b953c2c8efa
-	github.com/gospider007/tools v0.0.0-20250815031258-8a81d680917c
+	github.com/gospider007/http1 v0.0.0-20250820001757-7e2103027e4b
+	github.com/gospider007/tools v0.0.0-20250819094836-a81233312764
 	github.com/quic-go/qpack v0.5.1
 	github.com/quic-go/quic-go v0.54.0
 	github.com/refraction-networking/uquic v0.0.6
@@ -22,6 +22,7 @@ require (
 	github.com/gaukas/clienthellod v0.4.2 // indirect
 	github.com/gaukas/godicttls v0.0.4 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
+	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/google/pprof v0.0.0-20250630185457-6e76a2b096b5 // indirect
 	github.com/gospider007/kinds v0.0.0-20250815031133-b2282666f69c // indirect
@@ -38,12 +39,12 @@ require (
 	github.com/refraction-networking/utls v1.8.0 // indirect
 	github.com/sorairolake/lzip-go v0.3.7 // indirect
 	github.com/spf13/afero v1.14.0 // indirect
-	github.com/ulikunitz/xz v0.5.12 // indirect
+	github.com/ulikunitz/xz v0.5.13 // indirect
 	go.uber.org/automaxprocs v1.6.0 // indirect
 	go.uber.org/mock v0.6.0 // indirect
 	go4.org v0.0.0-20230225012048-214862532bf5 // indirect
 	golang.org/x/crypto v0.41.0 // indirect
-	golang.org/x/exp v0.0.0-20250813145105-42675adae3e6 // indirect
+	golang.org/x/exp v0.0.0-20250819193227-8b4c13bb791b // indirect
 	golang.org/x/image v0.30.0 // indirect
 	golang.org/x/mod v0.27.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
