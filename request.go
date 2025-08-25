@@ -9,12 +9,6 @@ import (
 	"github.com/gospider007/http1"
 )
 
-func sendRequestBody(str *stream, body io.ReadCloser) error {
-	defer body.Close()
-	_, err := io.CopyBuffer(str, body, make([]byte, bodyCopyBufferSize))
-	return err
-}
-
 func (obj *Client) sendRequest(req *http.Request, str *stream, orderHeaders []interface {
 	Key() string
 	Val() any
@@ -24,7 +18,9 @@ func (obj *Client) sendRequest(req *http.Request, str *stream, orderHeaders []in
 		return err
 	}
 	if req.Body != nil {
-		return sendRequestBody(str, req.Body)
+		_, err := io.CopyBuffer(str, req.Body, make([]byte, bodyCopyBufferSize))
+		req.Body.Close()
+		return err
 	}
 	return nil
 }
@@ -58,14 +54,13 @@ func (obj *Client) doRequest(ctx context.Context, req *http.Request, str *stream
 	Key() string
 	Val() any
 }) (*http.Response, error) {
-	var writeErr error
 	var readErr error
 	var resp *http.Response
 	writeDone := make(chan struct{})
 	readDone := make(chan struct{})
 	go func() {
 		defer close(writeDone)
-		writeErr = obj.sendRequest(req, str, orderHeaders)
+		writeErr := obj.sendRequest(req, str, orderHeaders)
 		if writeErr != nil {
 			obj.CloseWithError(writeErr)
 		}
@@ -78,18 +73,6 @@ func (obj *Client) doRequest(ctx context.Context, req *http.Request, str *stream
 		}
 	}()
 	select {
-	case <-writeDone:
-		if writeErr != nil {
-			return nil, writeErr
-		}
-		select {
-		case <-readDone:
-			return resp, readErr
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-obj.ctx.Done():
-			return nil, obj.ctx.Err()
-		}
 	case <-readDone:
 		if readErr == nil {
 			resp.Body.(*http1.Body).SetWriteDone(writeDone)

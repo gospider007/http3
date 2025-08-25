@@ -93,7 +93,7 @@ func validPseudoPath(v string) bool {
 }
 
 func responseFromHeaders(headerFields []qpack.HeaderField) (*http.Response, error) {
-	hdr, err := parseHeaders(headerFields, false)
+	hdr, err := parseHeaders(headerFields)
 	if err != nil {
 		return nil, err
 	}
@@ -113,26 +113,21 @@ func responseFromHeaders(headerFields []qpack.HeaderField) (*http.Response, erro
 }
 
 type header struct {
-	// all non-pseudo headers
-	Headers http.Header
-	// Pseudo header fields defined in RFC 9114
-	Path      string
-	Method    string
-	Authority string
-	Scheme    string
-	Status    string
-	// for Extended connect
-	Protocol string
-	// parsed and deduplicated
+	Headers       http.Header
+	Path          string
+	Method        string
+	Authority     string
+	Scheme        string
+	Status        string
+	Protocol      string
 	ContentLength int64
 }
 
-func parseHeaders(headers []qpack.HeaderField, isRequest bool) (header, error) {
+func parseHeaders(headers []qpack.HeaderField) (header, error) {
 	hdr := header{Headers: make(http.Header, len(headers))}
 	for _, h := range headers {
 		h.Name = strings.ToLower(h.Name)
 		if h.IsPseudo() {
-			var isResponsePseudoHeader bool // pseudo headers are either valid for requests or for responses
 			switch h.Name {
 			case ":path":
 				hdr.Path = h.Value
@@ -146,25 +141,19 @@ func parseHeaders(headers []qpack.HeaderField, isRequest bool) (header, error) {
 				hdr.Scheme = h.Value
 			case ":status":
 				hdr.Status = h.Value
-				isResponsePseudoHeader = true
 			default:
-				return header{}, fmt.Errorf("unknown pseudo header: %s", h.Name)
+				goto defaultSet
 			}
-			if isRequest && isResponsePseudoHeader {
-				return header{}, fmt.Errorf("invalid request pseudo header: %s", h.Name)
+			continue
+		}
+	defaultSet:
+		hdr.Headers.Add(h.Name, h.Value)
+		if h.Name == "content-length" {
+			cl, err := strconv.ParseInt(h.Value, 10, 64)
+			if err != nil {
+				return header{}, fmt.Errorf("invalid content length: %w", err)
 			}
-			if !isRequest && !isResponsePseudoHeader {
-				return header{}, fmt.Errorf("invalid response pseudo header: %s", h.Name)
-			}
-		} else {
-			hdr.Headers.Add(h.Name, h.Value)
-			if h.Name == "content-length" {
-				cl, err := strconv.ParseInt(h.Value, 10, 64)
-				if err != nil {
-					return header{}, fmt.Errorf("invalid content length: %w", err)
-				}
-				hdr.ContentLength = cl
-			}
+			hdr.ContentLength = cl
 		}
 	}
 	return hdr, nil
